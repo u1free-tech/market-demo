@@ -130,6 +130,7 @@ platform :ios do
       team_id: ENV.fetch("TEAM_ID"),
       code_sign_identity: "Apple Distribution"
       # profile_name は export_options で確定させるのでここでは未指定でもOK
+      profile_name: "match AppStore #{bundle_id}"
     )
 
     #===========================================================
