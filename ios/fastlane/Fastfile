@@ -124,12 +124,23 @@ platform :ios do
       code_sign_identity: "Apple Distribution"
     )
 
+    # 直前で使っている bundle_id をここでも使う想定です（ENV['APP_IDENTIFIER'] 等）
+    bundle_id = ENV['APP_IDENTIFIER'] || 'com.yourcompany.marketdemo'
+
+    # match がセットする “パス” の環境変数キーを作る
+    # 例: sigh_com_example_app_appstore_profile-path
+    env_key_for_path = "sigh_#{bundle_id.gsub('.', '_')}_appstore_profile-path"
+    profile_path = ENV[env_key_for_path]
+
+    UI.user_error!("Provisioning profile path not found in ENV['#{env_key_for_path}']") if profile_path.to_s.empty?
+
     # Pods/Capacitor 等に provisioning を当てない。App ターゲットだけ指定。
     update_project_provisioning(
       xcodeproj: "App/App.xcodeproj",
       target_filter: "App",
+      build_configuration: "Release",   # Debug も必要なら "Debug" でもう1回呼ぶ
       build_configuration: "Debug",
-      profile: profile_name,
+      profile: profile_path,
       code_sign_identity: "Apple Distribution"
     )
     update_project_provisioning(
