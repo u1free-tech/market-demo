@@ -110,8 +110,12 @@ platform :ios do
     )
 
     # 例: cocoapods と match の後、build_app の前
-    proj_path  = File.expand_path("ios/App/App.xcodeproj", __dir__)
-    plist_path = File.expand_path("ios/App/App/Info.plist", __dir__)
+    ios_dir    = File.expand_path("..", __dir__) # => .../ios
+    proj_path  = File.join(ios_dir, "App/App.xcodeproj")
+    plist_path = File.join(ios_dir, "App/App/Info.plist")
+
+    UI.message("proj_path = #{proj_path}")
+    UI.message("plist_path = #{plist_path}")
 
     bundle_id    = fetch_env!('APP_IDENTIFIER')
     team_id      = fetch_env!('TEAM_ID')
