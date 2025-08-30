@@ -19,6 +19,7 @@ platform :ios do
     #===========================================================
     # 0) CI用の一時キーチェーンを作成（codesign の無限待ち防止）
     #===========================================================
+    bundle_id = ENV["APP_IDENTIFIER"] || "com.yourcompany.marketdemo" # ← あなたの実際のBundle IDを設定
     keychain_name = "ci-temp.keychain"
     keychain_file = File.expand_path("~/Library/Keychains/#{keychain_name}-db")
     create_keychain(
@@ -123,7 +124,7 @@ platform :ios do
     # 6) App ターゲットだけ 手動署名 & Distribution 設定
     #    Pods はプロファイル不要なので一切指定しない
     #===========================================================
-    bundle_id = ENV["BUNDLE_ID"]
+#    bundle_id = ENV["BUNDLE_ID"]
     update_code_signing_settings(
       use_automatic_signing: false,
       path: "App/App.xcodeproj",
