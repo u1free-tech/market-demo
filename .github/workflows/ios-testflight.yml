@@ -6,44 +6,9 @@ on:
     tags:
       - "v*.*.*"
 
-# 同時実行を抑止（同じブランチ/タグでキューが溜まらないように）
-concurrency:
-  group: ios-testflight-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build-and-upload:
     runs-on: macos-latest
-    timeout-minutes: 60
-
-    permissions:
-      contents: read
-
-    env:
-      # ---- JavaScript / Vite ----
-      CI: true
-      NODE_OPTIONS: --max_old_space_size=4096
-
-      # ---- Fastlane / App Store Connect API Key ----
-      ASC_ISSUER_ID:        ${{ secrets.ASC_ISSUER_ID }}
-      ASC_KEY_ID:           ${{ secrets.ASC_KEY_ID }}
-      ASC_API_KEY_P8_BASE64:${{ secrets.ASC_API_KEY_P8_BASE64 }}
-
-      # ---- App / Team ----
-      APP_IDENTIFIER:       ${{ secrets.APP_IDENTIFIER }}     # 例: com.example.marketdemo
-      APPLE_TEAM_ID:        ${{ secrets.APPLE_TEAM_ID }}      # 例: ABCDE12345
-
-      # ---- match（証明書保管リポジトリ）----
-      MATCH_GIT_URL:        ${{ secrets.MATCH_GIT_URL }}      # 例: https://github.com/<owner>/<repo>.git
-      MATCH_GIT_BRANCH:     ${{ secrets.MATCH_GIT_BRANCH }}   # 例: main
-      MATCH_PASSWORD:       ${{ secrets.MATCH_PASSWORD }}     # match の暗号化パス
-      KEYCHAIN_PASSWORD:    ${{ secrets.KEYCHAIN_PASSWORD }}  # CI で使うキーチェーンのパス
-
-      # Basic 認証ヘッダ（"username:token" を Base64 したもの）で Git push の対話回避
-      MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-
-      # （任意）特定の Xcode を使いたい場合は Secrets に DEVELOPER_DIR を設定
-      DEVELOPER_DIR: ${{ secrets.DEVELOPER_DIR }}
 
     steps:
       - name: Checkout
@@ -51,11 +16,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Node 22+（Vite 7 の要件を満たす）
-      - name: Set up Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: ".nvmrc"   # <- .nvmrc を repo 直下に置いて 20.19.x などを指定
           cache: "npm"
 
       - name: Install JS deps
@@ -67,20 +31,27 @@ jobs:
       - name: Capacitor sync iOS
         run: npx cap sync ios
 
-      # Ruby と Bundler。bundler-cache を使うと Gem のインストールが速い
-      - name: Set up Ruby
+      - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
           bundler-cache: true
           working-directory: ios
 
-      # （念のため）Pod 環境を整える。Gemfile に cocoapods がある前提
       - name: CocoaPods install
         working-directory: ios/App
         run: bundle exec pod install --clean-install
 
-      # Fastlane（ci_build_testflight レーンを実行）
-      - name: Build & Upload to TestFlight (fastlane)
+      - name: Fastlane TestFlight
         working-directory: ios
+        env:
+          APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
+          APPLE_TEAM_ID:  ${{ secrets.APPLE_TEAM_ID }}
+          MATCH_GIT_URL:    ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BRANCH: ${{ secrets.MATCH_GIT_BRANCH }}
+          MATCH_PASSWORD:   ${{ secrets.MATCH_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          ASC_ISSUER_ID:  ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID:     ${{ secrets.ASC_KEY_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
         run: bundle exec fastlane ci_build_testflight
