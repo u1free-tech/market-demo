@@ -3,6 +3,27 @@
 # - 証明書/プロファイルは fastlane match (git) を使用
 # - 正確な provisioning profile 名を export_options と PROVISIONING_PROFILE_SPECIFIER に指定
 
+# 先頭付近で
+require "base64"
+
+# ...
+raw_key = require_env!("ASC_KEY_P8", "ASC_KEY_P8 is empty")
+
+# 1) まずは \n エスケープや CRLF を正規化
+key = raw_key.to_s
+key = key.gsub("\\n", "\n").gsub(/\r\n?/, "\n").strip
+
+# 2) ヘッダが無く Base64 だけのケースを救済（MII... で始まる等）
+if !key.include?("BEGIN") && key.match?(/\A[A-Za-z0-9+\/=\s]+\z/)
+  key = Base64.decode64(key).to_s.strip
+end
+
+# 3) まだ PEM ヘッダが無ければ付与
+unless key.include?("BEGIN PRIVATE KEY")
+  key = "-----BEGIN PRIVATE KEY-----\n#{key}\n-----END PRIVATE KEY-----"
+end
+
+
 default_platform :ios
 
 platform :ios do
@@ -58,7 +79,7 @@ platform :ios do
     api_key_obj = app_store_connect_api_key(
       key_id: require_env!("ASC_KEY_ID"),
       issuer_id: require_env!("ASC_ISSUER_ID"),
-      key_content: key_content,
+      key_content: key,
       in_house: false
     )
 
