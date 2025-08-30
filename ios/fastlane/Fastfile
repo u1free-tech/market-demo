@@ -158,6 +158,7 @@ platform :ios do
 
     # 8) TestFlight へアップロード（必要に応じてオプションは調整）
     upload_to_testflight(
+      app_identifier: fetch_env!("APP_IDENTIFIER"),
       skip_submission: true,
       skip_waiting_for_build_processing: true,
       distribute_external: false
