@@ -3,6 +3,13 @@
 # - 証明書/プロファイルは fastlane match (git) を使用
 # - 正確な provisioning profile 名を export_options と PROVISIONING_PROFILE_SPECIFIER に指定
 
+# 環境変数を必須で取得するユーティリティ
+def require_env!(key, message = nil)
+  value = ENV[key]
+  UI.user_error!(message || "Missing required environment variable: #{key}") if value.nil? || value.empty?
+  value
+end
+
 # 先頭付近で
 require "base64"
 
@@ -21,13 +28,6 @@ end
 # 3) まだ PEM ヘッダが無ければ付与
 unless key.include?("BEGIN PRIVATE KEY")
   key = "-----BEGIN PRIVATE KEY-----\n#{key}\n-----END PRIVATE KEY-----"
-end
-
-# 環境変数を必須で取得するユーティリティ
-def require_env!(key, message = nil)
-  value = ENV[key]
-  UI.user_error!(message || "Missing required environment variable: #{key}") if value.nil? || value.empty?
-  value
 end
 
 default_platform :ios
