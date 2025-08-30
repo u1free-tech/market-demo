@@ -115,6 +115,12 @@ platform :ios do
 
     UI.message("Using provisioning profile: #{profile_name}")
 
+    update_app_identifier(
+      xcodeproj: "App/App.xcodeproj",
+      plist_path: "App/App/Info.plist",
+      app_identifier: "com.inoueyuichi.marketdemo"
+    )
+
     # 5) Xcode プロジェクトの署名設定（App ターゲットのみ）
     update_code_signing_settings(
       use_automatic_signing: false,
