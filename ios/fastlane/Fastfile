@@ -138,19 +138,12 @@ platform :ios do
       workspace: "App/App.xcworkspace",
       scheme: "App",
       export_method: "app-store",
-      # エクスポート時に bundle_id => profile_name を "完全一致" で指定
+      xcargs: "DEVELOPMENT_TEAM=#{ENV['TEAM_ID']} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER='match AppStore #{bundle_id}'",
       export_options: {
         provisioningProfiles: {
-          bundle_id => profile_name
+          bundle_id => "match AppStore #{bundle_id}"
         }
-      },
-      # xcodebuild にも念のため指定（プロジェクト側に署名設定を残していても上書きできる）
-      xcargs: [
-        "DEVELOPMENT_TEAM=#{team_id}",
-        "CODE_SIGN_STYLE=Manual",
-        "CODE_SIGN_IDENTITY=Apple Distribution",
-        "PROVISIONING_PROFILE_SPECIFIER=#{profile_name}"
-      ].join(" ")
+      }
     )
 
     # TestFlight へアップロード（ipa は build_app が出力したものを自動検出）
