@@ -41,7 +41,8 @@ platform :ios do
       export_method: "app-store",
       export_options: {
         provisioningProfiles: {
-          ENV["APP_IDENTIFIER"] => "match AppStore #{ENV["APP_IDENTIFIER"]}"
+          "com.test.sampleiosapp" => "match AppStore com.test.sampleiosapp",
+          "com.yourcompany.marketdemo" => "match AppStore com.yourcompany.marketdemo"
         }
       },
       xcargs: "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']}"
