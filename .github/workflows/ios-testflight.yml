@@ -6,9 +6,14 @@ on:
     tags:
       - "v*.*.*"
 
+concurrency:
+  group: ios-${{ github.ref }}    # ブランチ単位
+  cancel-in-progress: false       # 途中の実行を勝手に止めない
+
 jobs:
   build-and-upload:
     runs-on: macos-latest
+    timeout-minutes: 90   # ← 余裕を持たせる
 
     steps:
       - name: Checkout
