@@ -43,7 +43,8 @@ platform :ios do
         provisioningProfiles: {
           ENV["APP_IDENTIFIER"] => "match AppStore #{ENV["APP_IDENTIFIER"]}"
         }
-      }
+      },
+      xcargs: "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']}"
     )
 
     # TestFlight アップロード（API Key）
