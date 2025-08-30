@@ -23,6 +23,12 @@ unless key.include?("BEGIN PRIVATE KEY")
   key = "-----BEGIN PRIVATE KEY-----\n#{key}\n-----END PRIVATE KEY-----"
 end
 
+# 環境変数を必須で取得するユーティリティ
+def require_env!(key, message = nil)
+  value = ENV[key]
+  UI.user_error!(message || "Missing required environment variable: #{key}") if value.nil? || value.empty?
+  value
+end
 
 default_platform :ios
 
