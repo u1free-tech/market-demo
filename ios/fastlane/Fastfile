@@ -157,7 +157,6 @@ platform :ios do
         "DEVELOPMENT_TEAM=#{ENV['TEAM_ID']}",
         "CODE_SIGN_STYLE=Manual",
         "CODE_SIGN_IDENTITY='Apple Distribution'",
-        "OTHER_CODE_SIGN_FLAGS=--keychain #{keychain_file}"
       ].join(" ")
     )
 
