@@ -1,0 +1,41 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# CocoaPods
+ios/App/Pods/
+ios/App/Podfile.lock
+
+# Xcode user settings
+ios/App/*.xcuserdata/
+ios/App/*.xcworkspace/xcuserdata/
+
+# Derived data
+ios/App/build/
+ios/App/DerivedData/
+
+# Fastlane generated stuff
+ios/fastlane/report.xml
+ios/fastlane/Preview.html
+ios/fastlane/screenshots

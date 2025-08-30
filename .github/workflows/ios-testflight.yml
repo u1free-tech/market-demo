@@ -1,0 +1,71 @@
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Optional tag (e.g. v1.0.0)'
+        required: false
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build-and-upload:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install JS deps
+        run: npm ci
+
+      - name: Build web (Vite)
+        run: npm run build
+
+      - name: Capacitor sync iOS
+        run: npx cap sync ios
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+
+      - name: Install fastlane
+        run: |
+          gem install bundler
+          bundle install
+
+      - name: CocoaPods install
+        working-directory: ios/App
+        run: pod install
+
+      - name: Build & Upload to TestFlight (fastlane)
+        working-directory: ios
+        env:
+          # Apple account (for match)
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+          # match repo
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BRANCH: ${{ secrets.MATCH_GIT_BRANCH }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+
+          # App info
+          APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
+
+          # App Store Connect API Key (for pilot upload)
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+
+        run: bundle exec fastlane ci_build_testflight

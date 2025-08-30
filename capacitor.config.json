@@ -1,0 +1,5 @@
+{
+  "appId": "com.yourcompany.marketdemo",
+  "appName": "Market Demo",
+  "webDir": "dist"
+}
