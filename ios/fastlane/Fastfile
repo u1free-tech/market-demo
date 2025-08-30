@@ -151,7 +151,7 @@ platform :ios do
       export_method: "app-store",
       export_options: {
         provisioningProfiles: {
-          bundle_id => profile_name
+          bundle_id => "match AppStore #{bundle_id}"
         }
       },
       xcargs: [
