@@ -93,7 +93,7 @@ platform :ios do
     # 3) CocoaPods
     cocoapods(
       clean_install: true,
-      project_directory: "App"
+      podfile: "App/Podfile"
     )
 
     # 4) 証明書 / プロビジョニング（match）
