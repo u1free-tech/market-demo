@@ -1,85 +1,117 @@
-# ios/Fastfile 先頭のほう
+# ios/Fastfile
 require "base64"
+
+# --- p8 を生PEM/BASE64どちらで渡されても読めるように＆制御文字を除去 ---
+def normalize_p8(env_value)
+  raw = env_value.to_s
+
+  # 余計な制御文字を排除（BOM/ヌル/CR など）
+  cleaned = raw.delete("\u0000").gsub("\uFEFF", "").gsub("\r", "").strip
+
+  pem = if cleaned.include?("BEGIN PRIVATE KEY")
+          cleaned                 # 生PEMで来た
+        else
+          Base64.decode64(cleaned) # Base64で来た
+        end
+
+  pem = pem.delete("\u0000").gsub("\uFEFF", "")
+
+  UI.user_error!("ASC API key doesn't look like a PEM") unless pem.include?("BEGIN PRIVATE KEY")
+  UI.message("ASC API key loaded. length=#{pem.length}") # 中身は表示しない（長さのみ）
+  pem
+end
+# ----------------------------------------------------------------------
 
 default_platform(:ios)
 
 platform :ios do
-  desc "CI: build iOS and upload to TestFlight (API Key only)"
+  desc "Build & Upload to TestFlight from CI"
   lane :ci_build_testflight do
+    # 必須ENV:
+    #   TEAM_ID                ... Apple Developer Team ID（例: ABCDE12345）
+    #   APP_IDENTIFIER         ... バンドルID（例: com.example.app）
+    #   ASC_KEY_ID             ... App Store Connect API Key ID（例: 2ABCD3EFGH）
+    #   ASC_ISSUER_ID          ... App Store Connect Issuer ID（GUID）
+    #   ASC_API_KEY_P8_BASE64  ... p8をBase64した1行の文字列（改行なし・引用符なし）
+    #
+    # 任意ENV:
+    #   MATCH_GIT_URL          ... match用certsリポジトリURL（https/sshどちらでも）
+    #   MATCH_GIT_BRANCH       ... 上記ブランチ名（未指定ならデフォルトブランチ）
+    #   KEYCHAIN_PASSWORD      ... ログインキーチェーンのパスワード（必要なら）
+    #   PROFILE_NAME           ... "match AppStore <bundle id>" など、明示したい場合のみ
 
-    # 2) Team を明示（念のため）
+    # Xcode プロジェクトのTeam設定（ターゲット名などは必要に応じて変更）
     update_project_team(
       path: "App/App.xcodeproj",
-      teamid: ENV["APPLE_TEAM_ID"]
+      teamid: ENV["TEAM_ID"],
+      targets: ["App"]
     )
 
-    # App Store Connect API Key（Secrets から組み立て）
+    # App Store Connect API Key（生PEM/BASE64どちらでもOK）
     api_key = app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"],
+      key_id:    ENV["ASC_KEY_ID"],
       issuer_id: ENV["ASC_ISSUER_ID"],
-      key_content: Base64.decode64(ENV["ASC_API_KEY_P8_BASE64"]), # ←ココ必須
-      is_key_content_base64: true
+      key_content: normalize_p8(ENV["ASC_API_KEY_P8_BASE64"]),
+      in_house: false
     )
 
-    # CocoaPods
+    # CocoaPods（Podfile の場所が違う場合は変更）
     cocoapods(
       clean_install: true,
       podfile: "App/Podfile"
     )
 
-    # 証明書/プロファイルの作成・取得（appstore）
+    # 証明書/プロファイルの同期（AppStore用）
     match(
       type: "appstore",
       readonly: false,
-      git_url: ENV["MATCH_GIT_URL"],
-      git_branch: ENV["MATCH_GIT_BRANCH"] || "main",
-      storage_mode: "git",
-      api_key: api_key,                     # ← ここがポイント（セッション不要）
-      team_id: ENV["APPLE_TEAM_ID"],
+      api_key: api_key,
       app_identifier: [ENV["APP_IDENTIFIER"]],
+      git_url: ENV["MATCH_GIT_URL"],
+      git_branch: ENV["MATCH_GIT_BRANCH"],
+      team_id: ENV["TEAM_ID"],
       keychain_name: "login.keychain-db",
-      keychain_password: ENV["KEYCHAIN_PASSWORD"] || "temp_keychain_password"
+      keychain_password: ENV["KEYCHAIN_PASSWORD"]
     )
 
+    # ビルド番号を+1
     increment_build_number(
       xcodeproj: "App/App.xcodeproj"
     )
 
-    # === ここから追記（置き換え） ===
-    # match が吐いた「BundleID => プロファイル名」のマップから、このアプリのプロファイル名を取得
-    profile_name_map = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING] || {}
-    app_profile_name = profile_name_map[ENV["APP_IDENTIFIER"]]
-
-    # 推奨アクションで「手動署名＋チーム＋プロファイル名＋配布ID」を明示
+    # Manual Signing を明示しておく（Debug/Release 両方）
     update_code_signing_settings(
       use_automatic_signing: false,
       path: "App/App.xcodeproj",
-      targets: ["App"],                               # ターゲット名。違う場合は合わせてください
-      team_id: ENV["APPLE_TEAM_ID"],
+      targets: ["App"],
+      team_id: ENV["TEAM_ID"],
       code_sign_identity: "Apple Distribution",
-      profile_name: app_profile_name                  # ← ここがポイント（名前でOK）
+      # PROFILE_NAME を渡す場合のみ効く。未指定なら下の export_options のマッピングで解決
+      profile_name: ENV["PROFILE_NAME"]
     )
 
-    # 念のため export_options にも指定（既にあればそのままでOK）
+    # アーカイブ＆IPA出力
+    # export_options の provisioningProfiles にバンドルID→プロファイル名を渡すのが確実
     build_app(
       workspace: "App/App.xcworkspace",
       scheme: "App",
+      destination: "generic/platform=iOS",
       export_method: "app-store",
+      xcargs: "DEVELOPMENT_TEAM=#{ENV['TEAM_ID']} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution'",
       export_options: {
         provisioningProfiles: {
-          ENV["APP_IDENTIFIER"] => app_profile_name   # "match AppStore <bundle>" の実名が入る
+          ENV["APP_IDENTIFIER"] => (ENV["PROFILE_NAME"] || "match AppStore #{ENV['APP_IDENTIFIER']}")
         }
       },
-      xcargs: "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution'"
+      output_directory: ".",
+      output_name: "App",
+      xcodebuild_formatter: "xcbeautify"
     )
-    # === ここまで追記（置き換え） ===
 
-    # TestFlight アップロード（API Key）
-    pilot(
-      ipa: Actions.lane_context[SharedValues::IPA_OUTPUT_PATH],
-      skip_waiting_for_build_processing: true,
-      notify_external_testers: false,
-      api_key: api_key                      # ← ここも API Key
+    # TestFlight へアップロード
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true
     )
   end
 end
