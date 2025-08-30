@@ -45,6 +45,7 @@ jobs:
       - name: Fastlane TestFlight
         working-directory: ios
         env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
           APPLE_TEAM_ID:  ${{ secrets.APPLE_TEAM_ID }}
           MATCH_GIT_URL:    ${{ secrets.MATCH_GIT_URL }}
