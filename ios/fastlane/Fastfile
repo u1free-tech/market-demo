@@ -109,6 +109,10 @@ platform :ios do
       readonly: false
     )
 
+    # 例: cocoapods と match の後、build_app の前
+    proj_path  = File.expand_path("ios/App/App.xcodeproj", __dir__)
+    plist_path = File.expand_path("ios/App/App/Info.plist", __dir__)
+
     bundle_id    = fetch_env!('APP_IDENTIFIER')
     team_id      = fetch_env!('TEAM_ID')
     profile_name = resolved_profile_name(bundle_id)
@@ -116,15 +120,15 @@ platform :ios do
     UI.message("Using provisioning profile: #{profile_name}")
 
     update_app_identifier(
-      xcodeproj: "App/App.xcodeproj",
-      plist_path: "App/App/Info.plist",
+      xcodeproj: proj_path,
+      plist_path: plist_path,
       app_identifier: "com.inoueyuichi.marketdemo"
     )
 
     # 5) Xcode プロジェクトの署名設定（App ターゲットのみ）
     update_code_signing_settings(
       use_automatic_signing: false,
-      path: "App/App.xcodeproj",
+      path: proj_path,
       targets: ["App"],
       team_id: team_id,
       code_sign_identity: "Apple Distribution"
