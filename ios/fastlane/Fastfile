@@ -93,7 +93,7 @@ platform :ios do
     # 3) CocoaPods
     #===========================================================
     cocoapods(
-      project_directory: "App",
+      podfile: "App/Podfile",   # ← Podfile の場所を指定する
       clean_install: true
     )
 
