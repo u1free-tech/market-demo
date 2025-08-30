@@ -137,7 +137,7 @@ platform :ios do
     # 7) アーカイブ（export_options で App のみ provisioningProfiles を明示）
     #    ※ OTHER_CODE_SIGN_FLAGS で codesign にキーチェーンを指示
     #===========================================================
-    bundle_id = ENV.fetch("APP_IDENTIFIER")
+#    bundle_id = ENV.fetch("APP_IDENTIFIER")
     # match がセットした env（例: sigh_com_example_app_appstore_profile-name）を拾う
     env_key = "sigh_#{bundle_id.gsub('.', '_')}_appstore_profile-name"
     profile_name = ENV[env_key]
