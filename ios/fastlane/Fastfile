@@ -39,9 +39,11 @@ platform :ios do
       workspace: "App/App.xcworkspace",
       scheme: "App",
       export_method: "app-store",
-      include_bitcode: false,
-      output_directory: "./build",
-      xcargs: "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']}"
+      export_options: {
+        provisioningProfiles: {
+          ENV["APP_IDENTIFIER"] => "match AppStore #{ENV["APP_IDENTIFIER"]}"
+        }
+      }
     )
 
     # TestFlight アップロード（API Key）
