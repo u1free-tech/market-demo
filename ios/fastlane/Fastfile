@@ -3,6 +3,29 @@ default_platform(:ios)
 platform :ios do
   desc "CI: build iOS and upload to TestFlight (API Key only)"
   lane :ci_build_testflight do
+
+    # 1) 自動署名をオフ（プロジェクト単位）
+    automatic_code_signing(
+      use_automatic_signing: false,
+      path: "App/App.xcodeproj",
+      team_id: ENV["APPLE_TEAM_ID"]
+    )
+
+    # 2) Team を明示（念のため）
+    update_project_team(
+      path: "App/App.xcodeproj",
+      teamid: ENV["APPLE_TEAM_ID"]
+    )
+
+    # 3) Appターゲットの Release に配布プロファイルを固定
+    update_project_provisioning(
+      xcodeproj: "App/App.xcodeproj",
+      target_filter: "App",                  # ターゲット名。違うなら合わせてください
+      build_configuration: "Release",
+      profile: "match AppStore #{ENV['APP_IDENTIFIER']}",
+      code_signing_identity: "Apple Distribution"
+    )
+
     # App Store Connect API Key（Secrets から組み立て）
     api_key = app_store_connect_api_key(
       key_id: ENV["ASC_KEY_ID"],
@@ -35,17 +58,18 @@ platform :ios do
       xcodeproj: "App/App.xcodeproj"
     )
 
+    # 4) 既に入れている build_app は xcargs を強化
     build_app(
       workspace: "App/App.xcworkspace",
       scheme: "App",
       export_method: "app-store",
       export_options: {
         provisioningProfiles: {
-          "com.test.sampleiosapp" => "match AppStore com.test.sampleiosapp",
-          "com.yourcompany.marketdemo" => "match AppStore com.yourcompany.marketdemo"
+          ENV["APP_IDENTIFIER"] => "match AppStore #{ENV["APP_IDENTIFIER"]}"
+          "com.test.sampleiosapp" => "match AppStore com.test.sampleiosapp"
         }
       },
-      xcargs: "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']}"
+      xcargs: "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution'"
     )
 
     # TestFlight アップロード（API Key）
