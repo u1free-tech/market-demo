@@ -1,105 +1,148 @@
 # ios/Fastfile
 require "base64"
 
-# --- p8 を生PEM/BASE64どちらで渡されても読めるように＆制御文字を除去 ---
-def normalize_p8(env_value)
-  raw = env_value.to_s
+# Fastfile
+# iOS CI: TestFlight ビルド用
+# 必要な Secrets / 環境変数:
+#   TEAM_ID                ... Apple Developer Team ID (例: 9JA89UHF49)
+#   APP_IDENTIFIER         ... バンドルID (例: com.example.app)
+#   ASC_KEY_ID             ... App Store Connect API Key ID (例: ABCDE12345)
+#   ASC_ISSUER_ID          ... App Store Connect Issuer ID (UUID)
+#   ASC_KEY_P8             ... App Store Connect API Key (P8) 生のPEM か Base64 のいずれか
+#   KEYCHAIN_PASSWORD      ... CI 用一時キーチェーンのパスワード（任意の強固な文字列）
 
-  # 余計な制御文字を排除（BOM/ヌル/CR など）
-  cleaned = raw.delete("\u0000").gsub("\uFEFF", "").gsub("\r", "").strip
-
-  pem = if cleaned.include?("BEGIN PRIVATE KEY")
-          cleaned                 # 生PEMで来た
-        else
-          Base64.decode64(cleaned) # Base64で来た
-        end
-
-  pem = pem.delete("\u0000").gsub("\uFEFF", "")
-
-  UI.user_error!("ASC API key doesn't look like a PEM") unless pem.include?("BEGIN PRIVATE KEY")
-  UI.message("ASC API key loaded. length=#{pem.length}") # 中身は表示しない（長さのみ）
-  pem
-end
-# ----------------------------------------------------------------------
-
-default_platform(:ios)
+default_platform :ios
 
 platform :ios do
-  desc "Build & Upload to TestFlight from CI"
+  desc "Archive & (optionally) upload to TestFlight on CI"
   lane :ci_build_testflight do
-    # 必須ENV:
-    #   TEAM_ID                ... Apple Developer Team ID（例: ABCDE12345）
-    #   APP_IDENTIFIER         ... バンドルID（例: com.example.app）
-    #   ASC_KEY_ID             ... App Store Connect API Key ID（例: 2ABCD3EFGH）
-    #   ASC_ISSUER_ID          ... App Store Connect Issuer ID（GUID）
-    #   ASC_API_KEY_P8_BASE64  ... p8をBase64した1行の文字列（改行なし・引用符なし）
-    #
-    # 任意ENV:
-    #   MATCH_GIT_URL          ... match用certsリポジトリURL（https/sshどちらでも）
-    #   MATCH_GIT_BRANCH       ... 上記ブランチ名（未指定ならデフォルトブランチ）
-    #   KEYCHAIN_PASSWORD      ... ログインキーチェーンのパスワード（必要なら）
-    #   PROFILE_NAME           ... "match AppStore <bundle id>" など、明示したい場合のみ
+    #===========================================================
+    # 0) CI用の一時キーチェーンを作成（codesign の無限待ち防止）
+    #===========================================================
+    keychain_name = "ci-temp.keychain"
+    keychain_file = File.expand_path("~/Library/Keychains/#{keychain_name}-db")
+    create_keychain(
+      name: keychain_name,
+      password: ENV.fetch("KEYCHAIN_PASSWORD"),
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      add_to_search_list: true
+    )
 
-    # Xcode プロジェクトのTeam設定（ターゲット名などは必要に応じて変更）
+    #===========================================================
+    # 1) Xcode プロジェクトの Team を明示（App ターゲットのみ）
+    #    ※ Pods 側は触らない（プロファイル不要・Automatic のままでOK）
+    #===========================================================
     update_project_team(
       path: "App/App.xcodeproj",
-      teamid: ENV["TEAM_ID"],
+      teamid: ENV.fetch("TEAM_ID"),
       targets: ["App"]
     )
 
-    # App Store Connect API Key（生PEM/BASE64どちらでもOK）
+    #===========================================================
+    # 2) App Store Connect API Key を PEM/Base64 両対応で組み立て
+    #   - 変な全角/CRLF/空白や BOM を除去
+    #   - BEGIN/END 行がない Base64 文字列にも対応
+    #===========================================================
+    raw_key = ENV.fetch("ASC_KEY_P8", "")
+    UI.user_error!("ASC_KEY_P8 is empty") if raw_key.to_s.strip.empty?
+
+    # 文字種のサニタイズ（BOM・NULL・CRLF → LF）
+    sanitized = raw_key.dup
+    sanitized = sanitized.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
+    sanitized = sanitized.delete("\u0000")                 # NULL バイト除去
+    sanitized = sanitized.gsub(/\r\n?/, "\n")              # 改行正規化
+    sanitized = sanitized.gsub(/[[:space:]]+\z/, "")       # 末尾空白
+    sanitized = sanitized.gsub(/\A[[:space:]]+/, "")       # 先頭空白
+
+    # Base64 ならデコードしてみる（失敗したらそのまま）
+    decoded = begin
+      # URL-safe Base64 も考慮
+      candidate = sanitized.tr("-_", "+/")
+      candidate.unpack1("m0")
+    rescue
+      sanitized
+    end
+    decoded = decoded.nil? || decoded.empty? ? sanitized : decoded
+
+    # BEGIN/END が無ければ PEM 化
+    pem = if decoded.include?("BEGIN PRIVATE KEY")
+            decoded
+          else
+            body = decoded.gsub(/-+BEGIN.*?-+|-+END.*?-+|\s/, "") # 既存ヘッダ/改行/空白除去
+            body = body.scan(/.{1,64}/).join("\n")
+            "-----BEGIN PRIVATE KEY-----\n#{body}\n-----END PRIVATE KEY-----\n"
+          end
+
+    # 念のため最終整形
+    pem = pem.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
+             .gsub(/\r\n?/, "\n")
+             .sub(/\A[[:space:]]+/, "")
+             .sub(/[[:space:]]+\z/, "")
+
+    UI.message("ASC API key loaded. length=#{pem.length}")
+
     api_key = app_store_connect_api_key(
-      key_id:    ENV["ASC_KEY_ID"],
-      issuer_id: ENV["ASC_ISSUER_ID"],
-      key_content: normalize_p8(ENV["ASC_API_KEY_P8_BASE64"]),
-      in_house: false
+      key_id:    ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: pem
     )
 
-    # CocoaPods（Podfile の場所が違う場合は変更）
+    #===========================================================
+    # 3) CocoaPods
+    #===========================================================
     cocoapods(
-      clean_install: true,
-      podfile: "App/Podfile"
+      project_directory: "App",
+      clean_install: true
     )
 
-    # 証明書/プロファイルの同期（AppStore用）
+    #===========================================================
+    # 4) match（証明書/プロファイル）を 一時キーチェーン にインストール
+    #===========================================================
+    ENV["MATCH_KEYCHAIN_NAME"] = keychain_name
+    ENV["MATCH_KEYCHAIN_PASSWORD"] = ENV.fetch("KEYCHAIN_PASSWORD")
+
     match(
       type: "appstore",
-      readonly: false,
       api_key: api_key,
-      app_identifier: [ENV["APP_IDENTIFIER"]],
-      git_url: ENV["MATCH_GIT_URL"],
-      git_branch: ENV["MATCH_GIT_BRANCH"],
-      team_id: ENV["TEAM_ID"],
-      keychain_name: "login.keychain-db",
-      keychain_password: ENV["KEYCHAIN_PASSWORD"]
+      app_identifier: [ENV.fetch("APP_IDENTIFIER")],
+      readonly: false,
+      keychain_name: ENV["MATCH_KEYCHAIN_NAME"],
+      keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"]
     )
 
-    # ---- ここを追加：プロファイル名を拾う ----
-    # Sigh は  ENV["sigh_<bundle>_appstore_profile-name"] をセットします
-    bundle_id   = ENV["APP_IDENTIFIER"]
-    env_key     = "sigh_#{bundle_id}_appstore_profile-name"
-    profile_name = ENV[env_key]
-    UI.user_error!("Provisioning profile name not found in ENV #{env_key}") if profile_name.to_s.strip.empty?
-
-    UI.message("Using provisioning profile: #{profile_name}")
-
-    # ビルド番号を+1
+    #===========================================================
+    # 5) ビルド番号自動加算
+    #===========================================================
     increment_build_number(
       xcodeproj: "App/App.xcodeproj"
     )
 
-    # Manual Signing を明示しておく（Debug/Release 両方）
+    #===========================================================
+    # 6) App ターゲットだけ 手動署名 & Distribution 設定
+    #    Pods はプロファイル不要なので一切指定しない
+    #===========================================================
     update_code_signing_settings(
       use_automatic_signing: false,
       path: "App/App.xcodeproj",
       targets: ["App"],
-      team_id: ENV["TEAM_ID"],
-      code_sign_identity: "Apple Distribution",
-      # PROFILE_NAME を渡す場合のみ効く。未指定なら下の export_options のマッピングで解決
-      profile_name: profile_name # ←重要
+      team_id: ENV.fetch("TEAM_ID"),
+      code_sign_identity: "Apple Distribution"
+      # profile_name は export_options で確定させるのでここでは未指定でもOK
     )
 
-    # 3) アーカイブ
+    #===========================================================
+    # 7) アーカイブ（export_options で App のみ provisioningProfiles を明示）
+    #    ※ OTHER_CODE_SIGN_FLAGS で codesign にキーチェーンを指示
+    #===========================================================
+    bundle_id = ENV.fetch("APP_IDENTIFIER")
+    # match がセットした env（例: sigh_com_example_app_appstore_profile-name）を拾う
+    env_key = "sigh_#{bundle_id.gsub('.', '_')}_appstore_profile-name"
+    profile_name = ENV[env_key]
+    # fallback（名前が取れない場合）
+    profile_name ||= "match AppStore #{bundle_id}"
+
     build_app(
       workspace: "App/App.xcworkspace",
       scheme: "App",
@@ -107,21 +150,30 @@ platform :ios do
       export_method: "app-store",
       export_options: {
         provisioningProfiles: {
-          ENV["APP_IDENTIFIER"] => profile_name
+          bundle_id => profile_name
         }
       },
       xcargs: [
         "DEVELOPMENT_TEAM=#{ENV['TEAM_ID']}",
         "CODE_SIGN_STYLE=Manual",
-        "CODE_SIGN_IDENTITY='Apple Distribution'"
-        # ★ ここに PROVISIONING_PROFILE_SPECIFIER を入れないこと！
+        "CODE_SIGN_IDENTITY='Apple Distribution'",
+        "OTHER_CODE_SIGN_FLAGS=--keychain #{keychain_file}"
       ].join(" ")
     )
 
-    # TestFlight へアップロード
-    upload_to_testflight(
-      api_key: api_key,
-      skip_waiting_for_build_processing: true
-    )
+    #===========================================================
+    # 8) 必要なら TestFlight へアップロード
+    #===========================================================
+    # upload_to_testflight(api_key: api_key)
+
+  ensure
+    #===========================================================
+    # 後始末：一時キーチェーン削除（失敗しても続行）
+    #===========================================================
+    begin
+      delete_keychain(name: keychain_name)
+    rescue => e
+      UI.message("Skip delete_keychain: #{e}")
+    end
   end
 end
