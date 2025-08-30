@@ -1,12 +1,57 @@
-# React + Vite
+## [fastlane match](https://docs.fastlane.tools/actions/match/)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> Do not modify this file, as it gets overwritten every time you run _match_.
 
-Currently, two official plugins are available:
+This repository contains all your certificates and provisioning profiles needed to build and sign your applications. They are encrypted using OpenSSL via a passphrase.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+**Important:** Make sure this repository is set to private and only your team members have access to this repo.
 
-## Expanding the ESLint configuration
+### Installation
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Make sure you have the latest version of the Xcode command line tools installed:
+
+```
+xcode-select --install
+```
+
+Install _fastlane_ using bundler by following instructions here on [fastlane docs](https://docs.fastlane.tools).
+
+or alternatively using 
+
+`brew install fastlane`
+
+### Usage
+
+Navigate to your project folder and run
+
+```
+fastlane match appstore
+```
+
+```
+fastlane match adhoc
+```
+
+```
+fastlane match development
+```
+
+```
+fastlane match enterprise
+```
+
+For more information open [fastlane match git repo](https://docs.fastlane.tools/actions/match/)
+
+### Content
+
+#### certs
+
+This directory contains all your certificates with their private keys
+
+#### profiles
+
+This directory contains all provisioning profiles
+
+---
+
+For more information open [fastlane match git repo](https://docs.fastlane.tools/actions/match/)
