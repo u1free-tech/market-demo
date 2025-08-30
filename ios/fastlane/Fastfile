@@ -123,6 +123,7 @@ platform :ios do
     # 6) App ターゲットだけ 手動署名 & Distribution 設定
     #    Pods はプロファイル不要なので一切指定しない
     #===========================================================
+    bundle_id = ENV["BUNDLE_ID"]
     update_code_signing_settings(
       use_automatic_signing: false,
       path: "App/App.xcodeproj",
@@ -130,7 +131,7 @@ platform :ios do
       team_id: ENV.fetch("TEAM_ID"),
       code_sign_identity: "Apple Distribution",
       # profile_name は export_options で確定させるのでここでは未指定でもOK
-      profile_name: "match AppStore #{ENV["BUNDLE_ID"]}"
+      profile_name: "match AppStore #{bundle_id}"
     )
 
     #===========================================================
