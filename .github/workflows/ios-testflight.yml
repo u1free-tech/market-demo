@@ -56,7 +56,7 @@ jobs:
           MATCH_GIT_URL:    ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BRANCH: ${{ secrets.MATCH_GIT_BRANCH }}
           MATCH_PASSWORD:   ${{ secrets.MATCH_PASSWORD }}
-          KEYCHAIN_PASSWORD:${{ secrets.KEYCHAIN_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
 
           # App Store Connect API Key（Base64化したp8）
           ASC_ISSUER_ID:        ${{ secrets.ASC_ISSUER_ID }}
