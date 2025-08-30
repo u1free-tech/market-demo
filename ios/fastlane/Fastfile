@@ -106,7 +106,6 @@ platform :ios do
       git_url: require_env!("MATCH_GIT_URL", "MATCH_GIT_URL is empty"),
       git_branch: ENV["MATCH_GIT_BRANCH"] || "main",
       readonly: false,                 # CIで新規作成も許可する場合は false
-      skip_settings: true,             # Xcode プロジェクトには触れない（こちらで明示指定するため）
       skip_set_partition_list: false
     )
 
