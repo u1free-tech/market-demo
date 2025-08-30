@@ -4,26 +4,10 @@ platform :ios do
   desc "CI: build iOS and upload to TestFlight (API Key only)"
   lane :ci_build_testflight do
 
-    # 1) 自動署名をオフ（プロジェクト単位）
-    automatic_code_signing(
-      use_automatic_signing: false,
-      path: "App/App.xcodeproj",
-      team_id: ENV["APPLE_TEAM_ID"]
-    )
-
     # 2) Team を明示（念のため）
     update_project_team(
       path: "App/App.xcodeproj",
       teamid: ENV["APPLE_TEAM_ID"]
-    )
-
-    # 3) Appターゲットの Release に配布プロファイルを固定
-    update_project_provisioning(
-      xcodeproj: "App/App.xcodeproj",
-      target_filter: "App",                  # ターゲット名。違うなら合わせてください
-      build_configuration: "Release",
-      profile: "match AppStore #{ENV['APP_IDENTIFIER']}",
-      code_signing_identity: "Apple Distribution"
     )
 
     # App Store Connect API Key（Secrets から組み立て）
@@ -58,19 +42,34 @@ platform :ios do
       xcodeproj: "App/App.xcodeproj"
     )
 
-    # 4) 既に入れている build_app は xcargs を強化
+    # === ここから追記（置き換え） ===
+    # match が吐いた「BundleID => プロファイル名」のマップから、このアプリのプロファイル名を取得
+    profile_name_map = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING] || {}
+    app_profile_name = profile_name_map[ENV["APP_IDENTIFIER"]]
+
+    # 推奨アクションで「手動署名＋チーム＋プロファイル名＋配布ID」を明示
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "App/App.xcodeproj",
+      targets: ["App"],                               # ターゲット名。違う場合は合わせてください
+      team_id: ENV["APPLE_TEAM_ID"],
+      code_sign_identity: "Apple Distribution",
+      profile_name: app_profile_name                  # ← ここがポイント（名前でOK）
+    )
+
+    # 念のため export_options にも指定（既にあればそのままでOK）
     build_app(
       workspace: "App/App.xcworkspace",
       scheme: "App",
       export_method: "app-store",
       export_options: {
         provisioningProfiles: {
-          ENV["APP_IDENTIFIER"] => "match AppStore #{ENV["APP_IDENTIFIER"]}"
-#          # "com.test.sampleiosapp" => "match AppStore com.test.sampleiosapp"
+          ENV["APP_IDENTIFIER"] => app_profile_name   # "match AppStore <bundle>" の実名が入る
         }
       },
       xcargs: "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution'"
     )
+    # === ここまで追記（置き換え） ===
 
     # TestFlight アップロード（API Key）
     pilot(
